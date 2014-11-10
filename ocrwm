@@ -1,17 +1,24 @@
 #!/bin/bash
 
-label='Copyright ©2011 USHMM'
+if [[ -z "${1:-}" ]]; then
+    label='Copyright ©2011 USHMM'
+else
+    label=$1
+fi
+
 font='/Users/aes9h/Downloads/fonts/Gudea/Gudea-Regular.ttf' 
 
 if [[ ! -d jpgs ]]; then
     mkdir -p jpgs
 fi
-
 if [[ ! -d ocr ]]; then
     mkdir -p ocr
 fi
+if [[ ! -d marked ]]; then
+    mkdir -p marked
+fi
 
-for file in *.{JPG,jpeg,gif,tif}
+for file in *.{JPG,jpeg,jpg,gif,tif}
 do
 
     fullname="${file##*/}"
@@ -24,22 +31,25 @@ do
        ########################################################################
         if [[ "jpg" != "$extension" ]]; then
             /usr/local/bin/convert $fullname ${filename}.jpg
-            fullname=${filename}.jpg
-            mv $fullname jpgs/
+            newname=${filename}.jpg
+            cp $newname jpgs/
         elif [[ "jpg" == "$extension" ]]; then
             cp $fullname jpgs/
+        else
+            echo "Skipping file $fullname."
+            continue
         fi
 
        ######################################################################## 
         # OCR the jpg and put in ocr directory
        ######################################################################## 
-       tesseract -l deu jpgs/$fullname ocr/$filename
+       tesseract -l deu jpgs/$newname ocr/$filename
 
        ######################################################################## 
         # Add watermark
        ######################################################################## 
-        width=$(identify -format %w $fullname) 
-        height=$(identify -format %h $fullname) 
+        width=$(identify -format %w jpgs/$newname) 
+        height=$(identify -format %h jpgs/$newname) 
         w=$(($width * 30))
         s=$(($width/2))
         h=$(($s+$s))
@@ -69,6 +79,6 @@ do
                 composite \
                 -gravity south \
                 -geometry +0+3 \
-                -   $1 marked/$1
+                -   jpgs/$newname marked/$newname
     fi
 done
