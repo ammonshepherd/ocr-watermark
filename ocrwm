@@ -1,0 +1,167 @@
+#!/bin/bash
+set -u
+
+
+CONV="/usr/local/bin/convert"
+COMP="/usr/local/bin/composite"
+IDEN="/usr/local/bin/identify"
+TESS="/usr/local/bin/tesseract"
+
+font='/Users/aes9h/Downloads/fonts/Gudea/Gudea-Regular.ttf' 
+
+USAGE='ocrwm [-copw] [-l "text"] [/path/to/folder]'
+
+# Get the options
+while getopts "cl:opw" options; do
+
+    case $options in
+        c ) NOCOPY="true";;
+        l ) LABEL="$OPTARG";;
+        o ) OCR="true";;
+        p ) PDF="true";;
+        w ) WATERMARK="true";;
+        \? ) echo "$USAGE"
+             exit 1;;
+        * ) echo "$USAGE"
+            exit 1;;
+    esac
+done
+shift $((OPTIND - 1))
+
+
+if [[ -z "${LABEL:-}" ]]; then
+    label='Copyright ©2013 KZ Gedenkstätte Neuengamme'
+else
+    label="$LABEL"
+fi
+
+
+# Get the working directory
+if [[ -z ${1:-} ]]; then
+    path=$(pwd)
+else
+    cd "$1"
+    path=$(pwd)
+fi
+
+
+if [[ "true" != "${NOCOPY:-}" ]]; then
+    if [[ ! -d copies ]]; then
+       mkdir -p copies
+    fi
+else
+    echo "Please note, OCR and Watermark assumes that a copy has been made and is available in the 'copies' directory."
+fi
+
+if [[ "true" == "${WATERMARK:-}" ]]; then
+    if [[ ! -d marked ]]; then
+        mkdir -p marked 
+    fi
+fi
+
+if [[ "true" == "${OCR:-}" ]]; then
+    if [[ ! -d ocr ]]; then
+        mkdir -p ocr 
+    fi
+fi
+
+
+# Use find piped to while with IFS to account for names with spaces and other
+# characters that would break in a for loop. Putting IFS in a while loop means
+# we don't have to worry about it being unset/reset.
+find "$path" -type f -depth 1 \
+    \( -iname \*.jpg -o -iname \*.jpeg \
+    -o -iname \*.png -o -iname \*.gif \
+    -o -iname "\*.tif*" \) \
+    -print0 | while IFS= read -r -d '' file 
+    do
+        # while parameters -r = do not read slashes in file names specially
+        #               -d '' = NUL delimeted
+
+    # ## deletes longest match from front of variable
+    # % deletes shortest match from end of variable
+    fullname="${file##*/}"
+    extension="${fullname##*.}"
+    filename="${fullname%.*}"
+    newname="${filename}.png"
+
+    if [[ -f "$file" ]]; then
+       ########################################################################
+        # create a copy in png form in the copy directory
+       ########################################################################
+       if [[ "true" == "${NOCOPY:-}" ]]; then
+           echo "Skipping making a copy of $fullname"
+       else
+           echo "Making copy of $fullname"
+           if [[ "png" == "$extension" ]]; then
+               cp "$path/$fullname" "$path/copies/"
+           else
+               $CONV "$path/$fullname" "$path/copies/$newname"
+           fi
+       fi
+
+       ######################################################################## 
+        # OCR the png and put in ocr directory
+       ######################################################################## 
+       if [[ "true" == "${OCR:-}" ]]; then
+           echo "Running OCR on $newname"
+           #command  #input    #output(.txt) #language=German
+           $TESS "$path/copies/$newname" "$path/ocr/$filename" -l deu 
+       fi
+
+       ######################################################################## 
+        # Add watermark
+       ######################################################################## 
+       if [[ "true" == "${WATERMARK:-}" ]]; then
+           echo "Putting water mark on $newname"
+            width=$($IDEN -format %w "$path/copies/$newname") 
+            # height=$($IDEN -format %h "$path/copies/$newname") 
+            # w=$((width * 30))
+            s=$((width/2))
+            # h=$((s+$s))
+            # p=$((height/35))
+
+
+            # Add black text in gold box under image
+            # convert \
+            #     $1 \
+            #     -background Gold \
+            #     -pointsize $s \
+            #     -font $font \
+            #     -gravity south \
+            #     -splice 0x$h \
+            #     -annotate +0+22 "$label" \
+            #     marked/$1
+
+            # $CONV -background '#0008' -fill white -gravity center -size $w \
+            #     caption:"$label" \
+            #     dragon.gif +swap -gravity south -composite  anno_caption.jpg
+
+            # Overlay white text on dark grey transparent background
+            $CONV \
+                -background '#00000080' \
+                -fill white \
+                -size "$s" \
+                -font "$font" \
+                label:"$label" \
+                miff:- | \
+                    $COMP \
+                    -gravity south \
+                    -geometry +0+3 \
+                    - "$path/copies/$newname" "$path/marked/$newname"
+        fi # end water mark section
+
+    fi
+    echo
+
+done
+
+
+######################################################################## 
+# Compile into one pdf
+######################################################################## 
+if [[ "true" == "${PDF:-}" ]]; then
+   echo "Consolidating images into one pdf."
+   $CONV "$path/copies/*.png" "$path/combined.pdf"
+fi
+
