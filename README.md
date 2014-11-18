@@ -12,11 +12,10 @@ This script will take a folder of images and do the following:
 - Copy the ocrwm file into the directory with the images you would like to convert, watermark, copy, and/or ocr.
 - Make the file executable:
    ```chmod u+x ocrwm```
-  - or just call the file with bash
-    ```bash ocrwm```
 - call the script
-   ```ocrwm```
-
+   ```ocrwm [owl <text>]```
+- or just call the file with bash
+   ```bash ocrwm [owl <text>]```
 
 # Options
 
