@@ -20,8 +20,7 @@ This script will take a folder of images and do the following:
 # Options
 
 ```
- c = Do NOT make a copy of the image. Usefull if copy has already been made
- using this script.
+ c = Do NOT make a copy of the image. Usefull if copy has already been made using this script.
  o = Make OCR of image
  l "text" = The text of the watermark
  w = Create a watermark copy of the image

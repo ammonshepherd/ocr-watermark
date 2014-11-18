@@ -62,10 +62,14 @@ fi
 
 
 
-for file in $path/*.{gif,jpeg,jpg,JPG,pdf,png,tif}
-do
+find "$path" -type f -depth 1 \
+    \( -iname \*.jpg -o -iname \*.jpeg \
+    -o -iname \*.png -o -iname \*.pdf \
+    -o -iname \*.tiff -o -iname \*.tif \
+    -o -iname \*.gif \) \
+    -print0 | while IFS= read -r -d '' file 
+    do
 
-    echo $path/$fullname
     fullname="${file##*/}"
     extension="${fullname##*.}"
     filename="${fullname%.*}"
@@ -80,11 +84,11 @@ do
        else
            echo "Making copy of $fullname"
            if [[ "pdf" == "$extension" ]]; then
-               $GS -q -o $path/copies/${filename}-%03d.png -sDEVICE=png16m -r150 $path/$fullname
+               $GS -q -o "$path/copies/${filename}-%03d.png" -sDEVICE=png16m -r150 "$path/$fullname"
            elif [[ "png" == "$extension" ]]; then
-               cp $path/$fullname $path/copies/
+               cp "$path/$fullname" "$path/copies/"
            else
-               $CONV $path/$fullname $path/copies/$newname
+               $CONV "$path/$fullname" "$path/copies/$newname"
            fi
        fi
 
@@ -93,16 +97,17 @@ do
        ######################################################################## 
        if [[ "true" == "$OCR" ]]; then
            if [[ "pdf" == "$extension" ]]; then
-               for txt in $path/copies/${fullname}-*
+               find "$path/copies/" -type f -iname "${fullname}-*" -print0 | \ 
+               while IFS= read -r -d '' txt
                do
                    echo "Running OCR on $txt"
                    #command  #input    #output(.txt) #language=German
-                   $TESS $path/copies/$txt $path/ocr/$txt -l deu 
+                   $TESS "$path/copies/$txt" "$path/ocr/$txt" -l deu 
                done
            else
                echo "Running OCR on $newname"
                #command  #input    #output(.txt) #language=German
-               $TESS $path/copies/$newname $path/ocr/$filename -l deu 
+               $TESS "$path/copies/$newname" "$path/ocr/$filename" -l deu 
            fi
        fi
 
@@ -111,8 +116,8 @@ do
        ######################################################################## 
        if [[ "true" == "$WATERMARK" ]]; then
            echo "Putting water mark on $newname"
-            width=$(identify -format %w $path/copies/$newname) 
-            height=$(identify -format %h $path/copies/$newname) 
+            width=$(identify -format %w "$path/copies/$newname") 
+            height=$(identify -format %h "$path/copies/$newname") 
             w=$(($width * 30))
             s=$(($width/2))
             h=$(($s+$s))
@@ -135,15 +140,16 @@ do
             $CONV \
                 -background '#00000080' \
                 -fill white \
-                -size $s \
-                -font $font \
+                -size "$s" \
+                -font "$font" \
                 label:"$label" \
                 miff:- | \
                     composite \
                     -gravity south \
                     -geometry +0+3 \
-                    - $path/copies/$newname $path/marked/$newname
+                    - "$path/copies/$newname" "$path/marked/$newname"
         fi # end water mark section
     fi
     echo
+
 done
