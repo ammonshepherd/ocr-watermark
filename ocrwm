@@ -7,13 +7,16 @@ TESS="/usr/local/bin/tesseract"
 
 font='/Users/aes9h/Downloads/fonts/Gudea/Gudea-Regular.ttf' 
 
+USAGE='ocrwm [-copw] [-l "text"] [/path/to/folder]'
+
 # Get the options
-while getopts "col:w" options; do
+while getopts "cl:opw" options; do
 
     case $options in
         c ) NOCOPY="true";;
         l ) LABEL="$OPTARG";;
         o ) OCR="true";;
+        p ) PDF="true";;
         w ) WATERMARK="true";;
         \? ) echo "$USAGE"
              exit 1;;
@@ -25,7 +28,7 @@ shift $(($OPTIND - 1))
 
 
 if [[ -z "${LABEL-}" ]]; then
-    label='Copyright ©2011 USHMM'
+    label='Copyright ©2013 KZ Gedenkstätte Neuengamme'
 else
     label="$LABEL"
 fi
@@ -61,12 +64,13 @@ if [[ "true" == $OCR ]]; then
 fi
 
 
-
+# Use find piped to while with IFS to account for names with spaces and other
+# characters that would break in a for loop. Putting IFS in a while loop means
+# we don't have to worry about it being unset/reset.
 find "$path" -type f -depth 1 \
     \( -iname \*.jpg -o -iname \*.jpeg \
-    -o -iname \*.png -o -iname \*.pdf \
-    -o -iname \*.tiff -o -iname \*.tif \
-    -o -iname \*.gif \) \
+    -o -iname \*.png -o -iname \*.gif \
+    -o -iname \*.tiff -o -iname \*.tif \) \
     -print0 | while IFS= read -r -d '' file 
     do
 
@@ -83,9 +87,7 @@ find "$path" -type f -depth 1 \
            echo "Skipping making a copy of $fullname"
        else
            echo "Making copy of $fullname"
-           if [[ "pdf" == "$extension" ]]; then
-               $GS -q -o "$path/copies/${filename}-%03d.png" -sDEVICE=png16m -r150 "$path/$fullname"
-           elif [[ "png" == "$extension" ]]; then
+           if [[ "png" == "$extension" ]]; then
                cp "$path/$fullname" "$path/copies/"
            else
                $CONV "$path/$fullname" "$path/copies/$newname"
@@ -96,19 +98,9 @@ find "$path" -type f -depth 1 \
         # OCR the png and put in ocr directory
        ######################################################################## 
        if [[ "true" == "$OCR" ]]; then
-           if [[ "pdf" == "$extension" ]]; then
-               find "$path/copies/" -type f -iname "${fullname}-*" -print0 | \ 
-               while IFS= read -r -d '' txt
-               do
-                   echo "Running OCR on $txt"
-                   #command  #input    #output(.txt) #language=German
-                   $TESS "$path/copies/$txt" "$path/ocr/$txt" -l deu 
-               done
-           else
-               echo "Running OCR on $newname"
-               #command  #input    #output(.txt) #language=German
-               $TESS "$path/copies/$newname" "$path/ocr/$filename" -l deu 
-           fi
+           echo "Running OCR on $newname"
+           #command  #input    #output(.txt) #language=German
+           $TESS "$path/copies/$newname" "$path/ocr/$filename" -l deu 
        fi
 
        ######################################################################## 
@@ -149,7 +141,18 @@ find "$path" -type f -depth 1 \
                     -geometry +0+3 \
                     - "$path/copies/$newname" "$path/marked/$newname"
         fi # end water mark section
+
     fi
     echo
 
 done
+
+
+######################################################################## 
+# Compile into one pdf
+######################################################################## 
+if [[ "true" == "$PDF" ]]; then
+   echo "Consolidating images into one pdf."
+   convert "$path/copies/*" "$path/combined.pdf"
+fi
+
