@@ -1,84 +1,149 @@
 #!/bin/bash
 
-if [[ -z "${1:-}" ]]; then
-    label='Copyright ©2011 USHMM'
-else
-    label=$1
-fi
+
+CONV="/usr/local/bin/convert"
+GS="/usr/local/bin/gs"
+TESS="/usr/local/bin/tesseract"
 
 font='/Users/aes9h/Downloads/fonts/Gudea/Gudea-Regular.ttf' 
 
-if [[ ! -d jpgs ]]; then
-    mkdir -p jpgs
-fi
-if [[ ! -d ocr ]]; then
-    mkdir -p ocr
-fi
-if [[ ! -d marked ]]; then
-    mkdir -p marked
+# Get the options
+while getopts "col:w" options; do
+
+    case $options in
+        c ) NOCOPY="true";;
+        l ) LABEL="$OPTARG";;
+        o ) OCR="true";;
+        w ) WATERMARK="true";;
+        \? ) echo "$USAGE"
+             exit 1;;
+        * ) echo "$USAGE"
+            exit 1;;
+    esac
+done
+shift $(($OPTIND - 1))
+
+
+if [[ -z "${LABEL-}" ]]; then
+    label='Copyright ©2011 USHMM'
+else
+    label="$LABEL"
 fi
 
-for file in *.{JPG,jpeg,jpg,gif,tif}
+
+# Get the working directory
+if [[ -z ${1:-} ]]; then
+    path=$(pwd)
+else
+    cd $1
+    path=$(pwd)
+fi
+
+
+if [[ "true" != $NOCOPY ]]; then
+    if [[ ! -d copies ]]; then
+       mkdir -p copies
+    fi
+else
+    echo "Please note, OCR and Watermark assumes that a copy has been made and is available in the 'copies' directory."
+fi
+
+if [[ "true" == $WATERMARK ]]; then
+    if [[ ! -d marked ]]; then
+        mkdir -p marked 
+    fi
+fi
+
+if [[ "true" == $OCR ]]; then
+    if [[ ! -d ocr ]]; then
+        mkdir -p ocr 
+    fi
+fi
+
+
+
+for file in $path/*.{gif,jpeg,jpg,JPG,pdf,png,tif}
 do
 
+    echo $path/$fullname
     fullname="${file##*/}"
     extension="${fullname##*.}"
     filename="${fullname%.*}"
+    newname="${filename}.png"
 
-    if [[ -f $fullname ]]; then
+    if [[ -f "$path/$fullname" ]]; then
        ########################################################################
-        # create a copy in jpg form in the jpgs directory
+        # create a copy in png form in the copy directory
        ########################################################################
-        if [[ "jpg" != "$extension" ]]; then
-            /usr/local/bin/convert $fullname ${filename}.jpg
-            newname=${filename}.jpg
-            cp $newname jpgs/
-        elif [[ "jpg" == "$extension" ]]; then
-            cp $fullname jpgs/
-        else
-            echo "Skipping file $fullname."
-            continue
-        fi
+       if [[ "true" == "$NOCOPY" ]]; then
+           echo "Skipping making a copy of $fullname"
+       else
+           echo "Making copy of $fullname"
+           if [[ "pdf" == "$extension" ]]; then
+               $GS -q -o $path/copies/${filename}-%03d.png -sDEVICE=png16m -r150 $path/$fullname
+           elif [[ "png" == "$extension" ]]; then
+               cp $path/$fullname $path/copies/
+           else
+               $CONV $path/$fullname $path/copies/$newname
+           fi
+       fi
 
        ######################################################################## 
-        # OCR the jpg and put in ocr directory
+        # OCR the png and put in ocr directory
        ######################################################################## 
-       tesseract -l deu jpgs/$newname ocr/$filename
+       if [[ "true" == "$OCR" ]]; then
+           if [[ "pdf" == "$extension" ]]; then
+               for txt in $path/copies/${fullname}-*
+               do
+                   echo "Running OCR on $txt"
+                   #command  #input    #output(.txt) #language=German
+                   $TESS $path/copies/$txt $path/ocr/$txt -l deu 
+               done
+           else
+               echo "Running OCR on $newname"
+               #command  #input    #output(.txt) #language=German
+               $TESS $path/copies/$newname $path/ocr/$filename -l deu 
+           fi
+       fi
 
        ######################################################################## 
         # Add watermark
        ######################################################################## 
-        width=$(identify -format %w jpgs/$newname) 
-        height=$(identify -format %h jpgs/$newname) 
-        w=$(($width * 30))
-        s=$(($width/2))
-        h=$(($s+$s))
-        p=$(($height/35))
+       if [[ "true" == "$WATERMARK" ]]; then
+           echo "Putting water mark on $newname"
+            width=$(identify -format %w $path/copies/$newname) 
+            height=$(identify -format %h $path/copies/$newname) 
+            w=$(($width * 30))
+            s=$(($width/2))
+            h=$(($s+$s))
+            p=$(($height/35))
 
 
-        # Add black text in gold box under image
-        # convert \
-        #     $1 \
-        #     -background Gold \
-        #     -pointsize $s \
-        #     -font $font \
-        #     -gravity south \
-        #     -splice 0x$h \
-        #     -annotate +0+22 "$label" \
-        #     marked/$1
+            # Add black text in gold box under image
+            # convert \
+            #     $1 \
+            #     -background Gold \
+            #     -pointsize $s \
+            #     -font $font \
+            #     -gravity south \
+            #     -splice 0x$h \
+            #     -annotate +0+22 "$label" \
+            #     marked/$1
 
 
-        # Overlay white text on dark grey transparent background
-        convert \
-            -background '#00000080' \
-            -fill white \
-            -size $s \
-            -font $font \
-            label:"$label" \
-            miff:- | \
-                composite \
-                -gravity south \
-                -geometry +0+3 \
-                -   jpgs/$newname marked/$newname
+            # Overlay white text on dark grey transparent background
+            $CONV \
+                -background '#00000080' \
+                -fill white \
+                -size $s \
+                -font $font \
+                label:"$label" \
+                miff:- | \
+                    composite \
+                    -gravity south \
+                    -geometry +0+3 \
+                    - $path/copies/$newname $path/marked/$newname
+        fi # end water mark section
     fi
+    echo
 done
