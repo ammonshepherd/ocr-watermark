@@ -153,6 +153,6 @@ done
 ######################################################################## 
 if [[ "true" == "$PDF" ]]; then
    echo "Consolidating images into one pdf."
-   convert "$path/copies/*" "$path/combined.pdf"
+   convert "$path/copies/*.png" "$path/combined.pdf"
 fi
 
