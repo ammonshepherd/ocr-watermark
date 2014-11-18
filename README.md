@@ -13,15 +13,17 @@ This script will take a folder of images and do the following:
 - Make the file executable:
    ```chmod u+x ocrwm```
 - call the script
-   ```ocrwm [owl <text>]```
+   ```ocrwm [-copw] [-l "text"] [/path/to/folder]```
 - or just call the file with bash
-   ```bash ocrwm [owl <text>]```
+   ```bash ocrwm [-copw] [-l "text"] [/path/to/folder]```
+
 
 # Options
 
 ```
  c = Do NOT make a copy of the image. Usefull if copy has already been made using this script.
+ l "<text>" = The text of the watermark
  o = Make OCR of image
- l "text" = The text of the watermark
+ p = Create a PDF document using the png images in the 'copies' directory.
  w = Create a watermark copy of the image
 ```
