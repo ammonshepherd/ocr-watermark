@@ -1,13 +1,33 @@
 #!/bin/bash
 set -u
 
+########################################
+ # Set these variables
+########################################
+# Set the default text for the watermark
+label='Copyright ©2013 KZ Gedenkstätte Neuengamme'
 
-CONV="/usr/local/bin/convert"
-COMP="/usr/local/bin/composite"
-IDEN="/usr/local/bin/identify"
-TESS="/usr/local/bin/tesseract"
-
+# Download a free font from Google Fonts
+# http://www.google.com/fonts#UsePlace:use/Collection:Gudea
 font='/Users/aes9h/Downloads/fonts/Gudea/Gudea-Regular.ttf' 
+
+
+########################################
+ # No need to edit past this point
+########################################
+CONV="$(which convert)"
+COMP="$(which composite)"
+IDEN="$(which identify)"
+TESS="$(which tesseract)"
+
+# Set colors for echo
+ESQ="\x1b["
+red=$ESQ'1;31;40m'
+blue=$ESQ'1;34;40m'
+yellow=$ESQ'33;40m'
+green=$ESQ'32;40m'
+magenta=$ESQ'35;40m'
+reset=$(tput sgr0)
 
 USAGE='ocrwm [-copw] [-l "text"] [/path/to/folder]'
 
@@ -20,19 +40,27 @@ while getopts "cl:opw" options; do
         o ) OCR="true";;
         p ) PDF="true";;
         w ) WATERMARK="true";;
-        \? ) echo "$USAGE"
+        \? ) echo -e "$USAGE"
              exit 1;;
-        * ) echo "$USAGE"
+        * ) echo -e "$USAGE"
             exit 1;;
     esac
 done
 shift $((OPTIND - 1))
 
 
+# Set the watermark text
 if [[ -z "${LABEL:-}" ]]; then
-    label='Copyright ©2013 KZ Gedenkstätte Neuengamme'
+    setlabel="$label"
 else
-    label="$LABEL"
+    setlabel="$LABEL"
+fi
+
+# If font not set above, set variable to empty
+if [[ -f "$font" ]]; then
+    setfont="-font $font"
+else
+    setfont=''
 fi
 
 
@@ -50,7 +78,7 @@ if [[ "true" != "${NOCOPY:-}" ]]; then
        mkdir -p copies
     fi
 else
-    echo "Please note, OCR and Watermark assumes that a copy has been made and is available in the 'copies' directory."
+    echo -e "${red}Please note, OCR and Watermark assumes that a copy has been made in the png format and is available in the 'copies' directory.${reset}"
 fi
 
 if [[ "true" == "${WATERMARK:-}" ]]; then
@@ -90,9 +118,9 @@ find "$path" -type f -depth 1 \
         # create a copy in png form in the copy directory
        ########################################################################
        if [[ "true" == "${NOCOPY:-}" ]]; then
-           echo "Skipping making a copy of $fullname"
+           echo -e "${red}Skipping making a copy of $fullname.${reset}"
        else
-           echo "Making copy of $fullname"
+           echo -e "Making copy of ${blue}$fullname${reset}."
            if [[ "png" == "$extension" ]]; then
                cp "$path/$fullname" "$path/copies/"
            else
@@ -104,7 +132,7 @@ find "$path" -type f -depth 1 \
         # OCR the png and put in ocr directory
        ######################################################################## 
        if [[ "true" == "${OCR:-}" ]]; then
-           echo "Running OCR on $newname"
+           echo -e "Running OCR on ${yellow}$newname${reset}."
            #command  #input    #output(.txt) #language=German
            $TESS "$path/copies/$newname" "$path/ocr/$filename" -l deu 
        fi
@@ -113,7 +141,7 @@ find "$path" -type f -depth 1 \
         # Add watermark
        ######################################################################## 
        if [[ "true" == "${WATERMARK:-}" ]]; then
-           echo "Putting water mark on $newname"
+           echo -e "Putting water mark on ${green}$newname${reset}."
             width=$($IDEN -format %w "$path/copies/$newname") 
             # height=$($IDEN -format %h "$path/copies/$newname") 
             # w=$((width * 30))
@@ -142,8 +170,8 @@ find "$path" -type f -depth 1 \
                 -background '#00000080' \
                 -fill white \
                 -size "$s" \
-                -font "$font" \
-                label:"$label" \
+                $setfont \
+                label:"$setlabel" \
                 miff:- | \
                     $COMP \
                     -gravity south \
@@ -161,7 +189,7 @@ done
 # Compile into one pdf
 ######################################################################## 
 if [[ "true" == "${PDF:-}" ]]; then
-   echo "Consolidating images into one pdf."
+   echo -e "${magenta}Consolidating images into one pdf.${reset}"
    $CONV "$path/copies/*.png" "$path/combined.pdf"
 fi
 
